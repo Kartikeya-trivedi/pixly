@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Backend API service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: game-overlay-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/game_overlay.db
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+      - ./static:/app/static
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Development backend with hot reload
+  backend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: game-overlay-ai-backend-dev
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/game_overlay_dev.db
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db_dev
+      - DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./chroma_db_dev:/app/chroma_db_dev
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: game-overlay-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    profiles:
+      - cache
+
+  # PostgreSQL database (alternative to SQLite)
+  postgres:
+    image: postgres:15-alpine
+    container_name: game-overlay-ai-postgres
+    environment:
+      - POSTGRES_DB=game_overlay_ai
+      - POSTGRES_USER=game_overlay_ai
+      - POSTGRES_PASSWORD=game_overlay_ai_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - postgres
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  default:
+    name: game-overlay-ai-network
